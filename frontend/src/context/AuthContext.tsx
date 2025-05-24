@@ -22,6 +22,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        console.log(API_BASE_URL)
         fetch(`${API_BASE_URL}/api/auth/session`, {
             method: 'GET',
             headers: {
