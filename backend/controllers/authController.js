@@ -123,7 +123,7 @@ const getSession = async (req, res) => {
     const user = result.rows[0];
 
     if (!user) {
-      // Cookie exists but session_id is not valid (e.g., after logout, or if DB entry was cleared)
+      // Cookie exists but session_id is not valid (e.g., after logout, or if DB entry was cleared )
       // It's good practice to clear a potentially invalid/stale cookie from the browser
       res.clearCookie('session_id', {
         httpOnly: true,
