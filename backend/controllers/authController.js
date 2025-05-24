@@ -27,7 +27,7 @@ const register = async (req, res) => {
     res.cookie('session_id', session_id, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production', // Set to true in production
-      sameSite: 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
       path: '/', // Ensure the cookie is available for all routes
       maxAge: 24 * 60 * 60 * 1000, // 1 day
     });
@@ -64,7 +64,7 @@ const login = async (req, res) => {
     res.cookie('session_id', newSessionId, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production', // Set to true in production
-      sameSite: 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
       path: '/', // Ensure the cookie is available for all routes
       maxAge: long_token ? 30 * 24 * 60 * 60 * 1000 : 12 * 60 * 60 * 1000, // 30 days or 12 hours
     });
@@ -91,7 +91,7 @@ const logout = async (req, res) => {
       res.clearCookie('session_id', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production', // Set to true in production
-        sameSite: 'lax',
+        sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
       });
   
       if (queryResult.rowCount > 0) {
@@ -123,12 +123,12 @@ const getSession = async (req, res) => {
     const user = result.rows[0];
 
     if (!user) {
-      // Cookie exists but session_id is not valid (e.g., after logout, or if DB entry was cleared)
+      // Cookie exists but session_id is not valid (e.g., after logout, or if DB entry was cleared )
       // It's good practice to clear a potentially invalid/stale cookie from the browser
       res.clearCookie('session_id', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
         path: '/',
       });
       return res.status(200).json({ user: null }); // Valid state, user is not authenticated
