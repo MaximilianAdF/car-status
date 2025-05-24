@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Eye, EyeOff } from 'lucide-react';
+import API_BASE_URL from '../config'; // Adjust the import path as needed
 
 export default function Login() {
     const navigate = useNavigate();
@@ -32,6 +33,10 @@ export default function Login() {
     }, []); // Empty dependency array means this runs once on mount
 
     const handleSubmit = async (e: React.FormEvent) => {
+        console.log('[Login Attempt] Inside login function.');
+        console.log('[Login Attempt] Raw import.meta.env.VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
+        console.log('[Login Attempt] Imported API_BASE_URL from config.ts:', API_BASE_URL);
+
         e.preventDefault();
         setLoading(true);
         setSuccess(false);
@@ -45,7 +50,7 @@ export default function Login() {
         }
 
         try {
-            const response = await fetch('http://localhost:8080/api/auth/login', {
+            const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -67,7 +72,6 @@ export default function Login() {
             setError('');
             setSuccess(true);
             setLoading(false);
-
 
 
 
