@@ -1,24 +1,34 @@
+const cookieParser = require('cookie-parser');
 const express = require('express');
 const cors = require('cors');
-const { Pool } = require('pg');
 require('dotenv').config();
 
+const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/user');
+const carsRoutes = require('./routes/car');
 const app = express();
-const port = process.env.PORT || 5000;
+const PORT = process.env.PORT;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN,
+  credentials: true,
+}));
 app.use(express.json());
+app.use(cookieParser());
 
-// Database connection
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/user', userRoutes);
+app.use('/api', carsRoutes);
 
-// Sample route
-app.get('/api/users', async (req, res) => {
-  const result = await pool.query('SELECT * FROM users');
-  res.json(result.rows);
+app.get('/', (req, res) => {
+  res.send('API is running');
 });
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+app.listen(PORT, () => {
+  console.log(`Server running on PORT ${PORT}`);
+  console.log(`CORS Origin: ${process.env.CORS_ORIGIN}`);
+  console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
+  console.log(`NODE_ENV: ${process.env.NODE_ENV === 'production'}`);
 });
