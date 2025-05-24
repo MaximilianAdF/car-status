@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react'; // Make sure useEffect is im
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext'; // Adjust path as needed
 import { Eye, EyeOff } from 'lucide-react'; // Import icons for password visibility toggle
+import API_BASE_URL from '../config';
 
 export default function Register() {
     const navigate = useNavigate();
@@ -31,7 +32,7 @@ export default function Register() {
         setError('');
 
         try {
-            const response = await fetch('http://localhost:8080/api/auth/register', {
+            const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ first_name: firstName, last_name: lastName, email, pass: password }),

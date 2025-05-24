@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-
+import API_BASE_URL from '../config';
 
 type Status = 'active' | 'maintenance' | 'inactive';
 type Car = { registration: string; status: Status; }
@@ -60,7 +60,7 @@ export default function Home() {
         
         setGarageLoading(true); // Indicate general loading for cars list
         try {
-            const response = await fetch('http://localhost:8080/api/cars', { /* your fetch options */
+            const response = await fetch(`${API_BASE_URL}/api/cars`, { /* your fetch options */
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'user_id': String(user.id) },
                 credentials: 'include', body: JSON.stringify({})
             });
@@ -144,7 +144,7 @@ export default function Home() {
             };
 
             // Replace with your actual API endpoint for logging a trip
-            const response = await fetch('http://localhost:8080/api/log-trip', {
+            const response = await fetch(`${API_BASE_URL}/api/log-trip`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -191,7 +191,7 @@ export default function Home() {
         setAddCarLoading(true);
         try {
             if (!user || !user.id) { setAddCarError('User not authenticated.'); return; }
-            const response = await fetch('http://localhost:8080/api/add-car', {
+            const response = await fetch(`${API_BASE_URL}/api/add-car`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'user_id': String(user.id) },
                 credentials: 'include',
@@ -213,7 +213,7 @@ export default function Home() {
     const handleRemoveCar = async (registration: string) => {
         if (!user || !user.id) { console.error('User not authenticated.'); return; }
         try {
-            const response = await fetch(`http://localhost:8080/api/remove-car/${registration}`, {
+            const response = await fetch(`${API_BASE_URL}/api/remove-car/${registration}`, {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json', 'user_id': String(user.id) },
                 credentials: 'include',
@@ -229,7 +229,7 @@ export default function Home() {
 
     const handleLogout = async () => {
         try {
-            const response = await fetch('http://localhost:8080/api/auth/logout', {
+            const response = await fetch(`${API_BASE_URL}/api/auth/logout`, {
                 method: 'POST', // Or GET, depending on your backend API design for logout
                 headers: {
                     'Content-Type': 'application/json',

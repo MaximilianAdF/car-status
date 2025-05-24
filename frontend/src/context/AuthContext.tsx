@@ -1,5 +1,6 @@
 // context/AuthContext.tsx
 import { createContext, useContext, useEffect, useState } from 'react';
+import API_BASE_URL from '../config';
 
 type User = {
     id: number;
@@ -21,7 +22,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetch('http://localhost:8080/api/auth/session', {
+        fetch(`${API_BASE_URL}/api/auth/session`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
