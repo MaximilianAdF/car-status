@@ -1,8 +1,8 @@
 // controllers/authController.js
 const bcrypt = require('bcrypt');
-const { v4: uuidv4 } = require('uuid'); // Still useful for opaque refresh tokens if not JWTs
 const jwt = require('jsonwebtoken');
 const pool = require('../db');
+const ms = require('ms'); 
 
 const generateTokens = (userPayload) => {
   const accessToken = jwt.sign(userPayload, process.env.JWT_SECRET, {
@@ -16,16 +16,20 @@ const generateTokens = (userPayload) => {
 
 const setRefreshTokenCookie = (res, token, rememberMe = false) => {
   const maxAge = rememberMe
-    ? parseInt(process.env.REFRESH_REMEMBER_ME_EXPIRATION * 24 * 60 * 60 * 1000) // e.g., 30 days in ms
-    : parseInt(process.env.REFRESH_TOKEN_EXPIRATION * 24 * 60 * 60 * 1000); // e.g., 7 days in ms
+    ? process.env.REFRESH_REMEMBER_ME_EXPIRATION // e.g., 30 days in ms
+    : process.env.REFRESH_TOKEN_EXPIRATION // e.g., 7 days in ms
 
-  console.log(`[setRefreshTokenCookie] Setting refresh token cookie with maxAge: ${maxAge}ms`);
+  const maxAgeInMs = ms(maxAge); // Convert to milliseconds
+  if (isNaN(maxAgeInMs)) {
+    console.error('Invalid maxAge value:', maxAge);
+    throw new Error('Invalid maxAge for refresh token cookie');
+  }
   res.cookie('refreshToken', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'Lax', // Assuming same-origin setup on Vercel as discussed
     path: '/api/auth', // Scope cookie to auth paths, esp. /refresh-token
-    maxAge: maxAge,
+    maxAge: maxAgeInMs,
   });
 };
 
@@ -119,7 +123,7 @@ const refreshTokenController = async (req, res) => {
     
     const userPayload = { id: decoded.id, email: decoded.email }; // Recreate payload from refresh token
     const newAccessToken = jwt.sign(userPayload, process.env.JWT_SECRET, {
-      expiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN || '15m',
+      expiresIn: process.env.ACCESS_TOKEN_EXPIRATION
     });
 
     // Optional: Refresh Token Rotation (for enhanced security)
