@@ -19,6 +19,7 @@ const setRefreshTokenCookie = (res, token, rememberMe = false) => {
     ? parseInt(process.env.REFRESH_REMEMBER_ME_EXPIRATION * 24 * 60 * 60 * 1000) // e.g., 30 days in ms
     : parseInt(process.env.REFRESH_TOKEN_EXPIRATION * 24 * 60 * 60 * 1000); // e.g., 7 days in ms
 
+  console.log(`[setRefreshTokenCookie] Setting refresh token cookie with maxAge: ${maxAge}ms`);
   res.cookie('refreshToken', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
