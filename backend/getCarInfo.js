@@ -38,3 +38,23 @@ async function getCarInfo(registration) {
     await browser.close();
     return data;
 }
+
+module.exports = getCarInfo;
+
+// --- Example Usage (for testing) ---
+async function testScraper() {
+    if (process.argv.length > 2) {
+        const registrationNumber = process.argv[2];
+        console.log(`Attempting to fetch info for registration: ${registrationNumber}`);
+        const info = await getCarInfo(registrationNumber);
+        console.log("\n--- Returned Data ---");
+        console.log(JSON.stringify(info, null, 2));
+        console.log("---------------------\n");
+    } else {
+        console.log("Usage: node your_file_name.js <REGISTRATION_NUMBER>");
+    }
+}
+
+if (require.main === module) {
+    testScraper();
+}
