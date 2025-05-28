@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import API_BASE_URL from '../config';
-import { RotateCcw, PlayCircle, StopCircle, XCircle, Edit3, ChevronRight, ChevronLeft, LogOut, CirclePlus, Clock, Gauge, CircleAlert, CircleParking, Flag, Timer, MapPin, MessageSquare, CircleCheck, Search, CheckCheck } from 'lucide-react';
+import { RotateCcw, PlayCircle, StopCircle, XCircle, Edit3, ChevronRight, ChevronLeft, LogOut, CirclePlus, Clock, Gauge, CircleAlert, CircleParking, Flag, Timer, MapPin, MessageSquare, CheckCheck } from 'lucide-react';
 
 const ACCESS_LEVEL_OPTIONS = [
     { value: 'owner', label: 'Owner' },
