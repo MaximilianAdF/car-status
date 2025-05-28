@@ -1,60 +1,61 @@
-const puppeteer = require('puppeteer');
+require('dotenv').config();
+const axios = require('axios');
+const cheerio = require('cheerio');
+
+const SCRAPINGBEE_API_KEY = process.env.SCRAPINGBEE_API_KEY;
 
 async function getCarInfo(registration) {
-    const url = `https://www.car.info/en-se/license-plate/S/${registration}`;
-    const browser = await puppeteer.launch({ headless: true });
-    const page = await browser.newPage();
-    
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
-    
-    await page.goto(url, { waitUntil: 'networkidle2' });
+    const targetUrl = `https://www.car.info/en-se/license-plate/S/${registration}`;
+    const apiUrl = `https://app.scrapingbee.com/api/v1`;
 
-    const data = await page.evaluate(() => {
-        const breadcrumbItems = document.querySelectorAll('ul.breadcrumb.clearfix li.breadcrumb-item');
-        const make = breadcrumbItems[1]?.innerText.trim() || 'N/A';
-        const year = breadcrumbItems[5]?.innerText.trim() || 'N/A';
-        const model = breadcrumbItems[6]?.innerText.trim() || 'N/A';
+    try {
+        console.log(`Fetching data from car.info for ${registration} via ScrapingBee`);
 
-        const valuations = document.querySelectorAll('div.featured_info_valuation');
-        let individual = 'N/A', company = 'N/A';
-        valuations.forEach(val => {
-            const text = val.innerText;
-            if (text.includes('Indicative valuation (individual)')) {
-                individual = val.querySelector('.size_h3.mb-0.text-nowrap')?.innerText.trim();
-            }
-            if (text.includes('Indicative valuation (company)')) {
-                company = val.querySelector('.size_h3.mb-0.text-nowrap')?.innerText.trim();
+        const response = await axios.get(apiUrl, {
+            params: {
+                api_key: SCRAPINGBEE_API_KEY,
+                url: targetUrl,
+                render_js: true
             }
         });
 
+        const html = response.data;
+        const $ = cheerio.load(html);
+
+        // Extract breadcrumb info
+        const make = $('ul.breadcrumb.clearfix li.breadcrumb-item:nth-child(2) a').text().trim() || 'N/A';
+        const year = $('ul.breadcrumb.clearfix li.breadcrumb-item:nth-child(6) a').text().trim() || 'N/A';
+        const model = $('ul.breadcrumb.clearfix li.breadcrumb-item:nth-child(7)').text().trim() || 'N/A';
+
+        // Extract valuations
+        const individualVal = $('div.featured_info_valuation:has(div:contains("Indicative valuation (individual)")) div.size_h3.mb-0.text-nowrap').text().trim();
+        const companyVal = $('div.featured_info_valuation:has(div:contains("Indicative valuation (company)")) div.size_h3.mb-0.text-nowrap').text().trim();
+
         let valuation = 'N/A';
-        if (individual && company) valuation = `${individual} - ${company}`;
-        else if (individual) valuation = individual;
-        else if (company) valuation = company;
+        if (individualVal && companyVal) {
+            valuation = `${individualVal} - ${companyVal}`;
+        } else if (individualVal) {
+            valuation = individualVal;
+        } else if (companyVal) {
+            valuation = companyVal;
+        }
 
-        return { make, model, year, valuation };
-    });
+        const carData = {
+            make,
+            model,
+            year,
+            valuation
+        };
 
-    await browser.close();
-    return data;
-}
+        return carData;
 
-module.exports = getCarInfo;
-
-// --- Example Usage (for testing) ---
-async function testScraper() {
-    if (process.argv.length > 2) {
-        const registrationNumber = process.argv[2];
-        console.log(`Attempting to fetch info for registration: ${registrationNumber}`);
-        const info = await getCarInfo(registrationNumber);
-        console.log("\n--- Returned Data ---");
-        console.log(JSON.stringify(info, null, 2));
-        console.log("---------------------\n");
-    } else {
-        console.log("Usage: node your_file_name.js <REGISTRATION_NUMBER>");
+    } catch (error) {
+        console.error(`Failed to fetch car info for ${registration}:`, error.message);
+        return {
+            registration: registration.toUpperCase(),
+            error: 'Failed to fetch or parse car information.',
+        };
     }
 }
 
-if (require.main === module) {
-    testScraper();
-}
+module.exports = getCarInfo;
