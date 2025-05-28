@@ -71,7 +71,7 @@ export default function Home() {
     const [logTripSuccess, setLogTripSuccess] = useState(false);
     
     const [elapsedTime, setElapsedTime] = useState<string>('00:00:00');
-    const [timerIntervalId, setTimerIntervalId] = useState<NodeJS.Timeout | null>(null);
+    const [timerIntervalId, setTimerIntervalId] = useState<ReturnType<typeof setInterval> | null>(null);
     // --- End Trip Logging States ---
 
     const navigate = useNavigate();
