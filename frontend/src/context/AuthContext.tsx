@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import API_BASE_URL from '../config'; // Ensure this path is correct
 
 type User = {
@@ -28,7 +27,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [accessToken, setAccessTokenState] = useState<string | null>(() => localStorage.getItem('accessToken'));
     const [operationLoading, setOperationLoading] = useState(false);
     const [isInitialized, setIsInitialized] = useState(false);
-    const navigate = useNavigate();
 
     const setUser = (userData: User | null) => {
         setUserState(userData);
