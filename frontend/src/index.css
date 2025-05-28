@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
 body {
-    overflow-y:auto;
+  font-family: 'Inter', sans-serif; /* Example: Using Inter font */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }

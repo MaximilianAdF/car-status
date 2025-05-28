@@ -1,9 +1,36 @@
+// controllers/authController.js
 const bcrypt = require('bcrypt');
-const { v4: uuidv4 } = require('uuid');
-const pool = require('../db'); //db pool
+const { v4: uuidv4 } = require('uuid'); // Still useful for opaque refresh tokens if not JWTs
+const jwt = require('jsonwebtoken');
+const pool = require('../db');
+
+const generateTokens = (userPayload) => {
+  const accessToken = jwt.sign(userPayload, process.env.JWT_SECRET, {
+    expiresIn: process.env.ACCESS_TOKEN_EXPIRATION
+  });
+  const refreshToken = jwt.sign(userPayload, process.env.JWT_REFRESH_SECRET, { // Refresh token is also a JWT
+    expiresIn: process.env.REFRESH_TOKEN_EXPIRATION
+  });
+  return { accessToken, refreshToken };
+};
+
+const setRefreshTokenCookie = (res, token, rememberMe = false) => {
+  const maxAge = rememberMe
+    ? parseInt(process.env.REFRESH_TOKEN_REMEMBER_ME_EXPIRES_IN_MS || 30 * 24 * 60 * 60 * 1000) // e.g., 30 days in ms
+    : parseInt(process.env.REFRESH_TOKEN_EXPIRES_IN_MS || 7 * 24 * 60 * 60 * 1000); // e.g., 7 days in ms
+
+  res.cookie('refreshToken', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Lax', // Assuming same-origin setup on Vercel as discussed
+    path: '/api/auth', // Scope cookie to auth paths, esp. /refresh-token
+    maxAge: maxAge,
+  });
+};
+
 
 const register = async (req, res) => {
-  const { first_name, last_name, pass } = req.body;
+  const { first_name, last_name, pass, rememberMe } = req.body; // Assuming rememberMe might come from register
   const email = req.body.email ? req.body.email.toLowerCase() : null;
 
   if (!email || !pass) {
@@ -15,32 +42,33 @@ const register = async (req, res) => {
     if (existing.rows.length > 0) return res.status(400).json({ error: 'Email already exists' });
 
     const hashedPass = await bcrypt.hash(pass, 10);
-    const session_id = uuidv4();
 
+    // We don't need to store session_id on user record for JWT approach like before.
+    // If you want to store refresh tokens server-side for invalidation, that's a separate mechanism.
     const result = await pool.query(
-      `INSERT INTO users (first_name, last_name, email, pass, session_id)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id, email`,
-      [first_name, last_name, email, hashedPass, session_id]
+      `INSERT INTO users (first_name, last_name, email, pass)
+       VALUES ($1, $2, $3, $4) RETURNING id, email, first_name, last_name`, // Removed session_id
+      [first_name, last_name, email, hashedPass]
     );
+    const user = result.rows[0];
+    const userPayload = { id: user.id, email: user.email }; // Payload for JWT
 
-    // Set the session_id cookie here:
-    res.cookie('session_id', session_id, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // Set to true in production
-      sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
-      path: '/', // Ensure the cookie is available for all routes
-      maxAge: 24 * 60 * 60 * 1000, // 1 day
+    const { accessToken, refreshToken } = generateTokens(userPayload);
+    setRefreshTokenCookie(res, refreshToken, rememberMe);
+
+    res.status(201).json({
+      message: 'User created',
+      accessToken,
+      user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name },
     });
-
-    res.status(201).json({ message: 'User created', user: { id: result.rows[0].id, email: result.rows[0].email, first_name, last_name } });
   } catch (err) {
-    console.error(err);
+    console.error('Registration error:', err);
     res.status(500).json({ error: 'Registration failed' });
   }
 };
 
 const login = async (req, res) => {
-  const { pass, long_token } = req.body;
+  const { pass, rememberMe } = req.body; // rememberMe from login form
   const email = req.body.email ? req.body.email.toLowerCase() : null;
 
   if (!email || !pass) {
@@ -55,95 +83,111 @@ const login = async (req, res) => {
     const match = await bcrypt.compare(pass, user.pass);
     if (!match) return res.status(400).json({ error: 'Invalid email or password' });
 
-    // Create new session ID (invalidate old)
-    const newSessionId = uuidv4();
-    await pool.query('UPDATE users SET session_id = $1 WHERE id = $2', [newSessionId, user.id]);
+    // Don't need to update session_id in users table anymore for this flow
+    const userPayload = { id: user.id, email: user.email };
+    const { accessToken, refreshToken } = generateTokens(userPayload);
 
-    // Set session_id cookie here:
-    console.log(`[${req.method} ${req.path}] Setting session_id cookie:`, newSessionId);
-    res.cookie('session_id', newSessionId, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // Set to true in production
-      sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
-      path: '/', // Ensure the cookie is available for all routes
-      maxAge: long_token ? 30 * 24 * 60 * 60 * 1000 : 12 * 60 * 60 * 1000, // 30 days or 12 hours
+    // The 'long_token' logic from your old code is now 'rememberMe'
+    setRefreshTokenCookie(res, refreshToken, rememberMe);
+
+    console.log(`[POST /api/auth/login] User ${user.email} logged in. Access token issued.`);
+    res.json({
+      message: 'Login successful',
+      accessToken,
+      user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name },
     });
-
-    res.json({ message: 'Login successful', user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name } });
   } catch (err) {
-    console.error(err);
+    console.error('Login error:', err);
     res.status(500).json({ error: 'Login failed' });
   }
 };
 
+const refreshTokenController = async (req, res) => {
+  const incomingRefreshToken = req.cookies?.refreshToken;
+  console.log('[POST /api/auth/refresh-token] Incoming refreshToken cookie:', incomingRefreshToken ? 'Present' : 'Missing');
 
-const logout = async (req, res) => {
-    const { session_id } = req.cookies;
 
-    if (!session_id) {
-      return res.status(400).json({ error: 'No session found' });
-    }
-
-    try {
-      const queryResult = await pool.query('UPDATE users SET session_id = NULL WHERE session_id = $1', [session_id]);
-  
-      // Clear the cookie
-      res.clearCookie('session_id', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production', // Set to true in production
-        sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
-      });
-  
-      if (queryResult.rowCount > 0) {
-        res.json({ message: 'Logout successful' });
-      } else {
-        // Session ID not found or already null, still clear cookie
-        res.json({ message: 'Session not found or already logged out' });
-      }
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: 'Logout failed' });
-    }
-};
-
-const getSession = async (req, res) => {
-  console.log('[GET /api/auth/session] Request Cookies:', req.cookies); // For debugging
-  const { session_id } = req.cookies || {}; // Default to empty object if req.cookies is undefined
-
-  if (!session_id) {
-    // No session cookie, so no authenticated user. This is a valid state, not an error.
-    return res.status(200).json({ user: null }); 
+  if (!incomingRefreshToken) {
+    return res.status(401).json({ error: 'Unauthorized: No refresh token' });
   }
 
   try {
-    const result = await pool.query(
-      'SELECT id, email, first_name, last_name FROM users WHERE session_id = $1',
-      [session_id]
-    );
-    const user = result.rows[0];
+    const decoded = jwt.verify(incomingRefreshToken, process.env.JWT_REFRESH_SECRET);
+    // Token is valid, issue a new access token
+    // You could also check if this refresh token is in a DB blocklist if you implement that
+    
+    const userPayload = { id: decoded.id, email: decoded.email }; // Recreate payload from refresh token
+    const newAccessToken = jwt.sign(userPayload, process.env.JWT_SECRET, {
+      expiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN || '15m',
+    });
 
-    if (!user) {
-      // Cookie exists but session_id is not valid (e.g., after logout, or if DB entry was cleared )
-      // It's good practice to clear a potentially invalid/stale cookie from the browser
-      res.clearCookie('session_id', {
+    // Optional: Refresh Token Rotation (for enhanced security)
+    // const newRefreshToken = jwt.sign(userPayload, process.env.JWT_REFRESH_SECRET, { expiresIn: decoded.exp - Math.floor(Date.now()/1000) > someThreshold ? decoded.exp - Math.floor(Date.now()/1000) + 's' : process.env.REFRESH_TOKEN_EXPIRES_IN });
+    // setRefreshTokenCookie(res, newRefreshToken, true); // Assuming if they had a refresh token, they want to stay remembered
+
+    console.log(`[POST /api/auth/refresh-token] New access token issued for user ID: ${decoded.id}`);
+    res.json({ accessToken: newAccessToken });
+
+  } catch (err) {
+    console.error('Refresh token error:', err);
+    // If refresh token is invalid or expired, clear it
+    res.clearCookie('refreshToken', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
-        path: '/',
-      });
-      return res.status(200).json({ user: null }); // Valid state, user is not authenticated
+        sameSite: 'Lax', // Assuming same-origin setup
+        path: '/api/auth',
+    });
+    if (err.name === 'TokenExpiredError') {
+        return res.status(401).json({ error: 'Unauthorized: Refresh token expired', code: 'REFRESH_TOKEN_EXPIRED' });
     }
-
-    // Valid session, return user data (excluding sensitive info like password hash)
-    res.status(200).json({ user });
-  } catch (err) {
-    console.error('Get session error:', err);
-    // Send a 200 with user: null in case of server error during session check,
-    // rather than a 500, to prevent frontend from breaking if backend has db issues.
-    // The frontend will treat user: null as "not logged in".
-    // Alternatively, you could send a 500 if you want to signal a server problem more explicitly.
-    res.status(200).json({ user: null, error: 'Failed to retrieve session due to server error' });
+    return res.status(403).json({ error: 'Forbidden: Invalid refresh token' });
   }
 };
 
-module.exports = { register, login, logout, getSession };
+const logout = async (req, res) => {
+  // For JWT, logout primarily means the client discards the access token.
+  // If you store refresh tokens server-side to allow invalidation, you'd do that here.
+  // For now, we just clear the refresh token cookie.
+  const refreshTokenFromCookie = req.cookies?.refreshToken;
+  console.log('[POST /api/auth/logout] Attempting to logout. Refresh token in cookie:', refreshTokenFromCookie ? 'Present' : 'Missing');
+
+  // (Advanced: If storing refresh tokens in DB: find and invalidate the token based on refreshTokenFromCookie or user ID)
+
+  res.clearCookie('refreshToken', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Lax', // Assuming same-origin setup
+    path: '/api/auth', // Must match path used when setting
+  });
+
+  res.status(200).json({ message: 'Logout successful' });
+};
+
+
+// This route is for getting user info if they have a valid ACCESS token
+const getCurrentUser = async (req, res) => {
+    // verifyToken middleware should have run and put user data in req.user
+    if (!req.user || !req.user.id) {
+        return res.status(401).json({ error: 'Unauthorized: User data not found in token' });
+    }
+    try {
+        // Fetch fresh user details from DB to ensure they are up-to-date
+        const userResult = await pool.query(
+            'SELECT id, email, first_name, last_name FROM users WHERE id = $1',
+            [req.user.id]
+        );
+        if (userResult.rows.length > 0) {
+            res.status(200).json({ user: userResult.rows[0] });
+        } else {
+            res.status(404).json({ error: 'User not found' });
+        }
+    } catch (err) {
+        console.error('Error fetching current user:', err);
+        res.status(500).json({ error: 'Failed to retrieve user data' });
+    }
+};
+
+
+// The old getSession based on session_id cookie is no longer the primary way.
+// We now use /refresh-token (for auto-login) and a protected /me route (for user data).
+module.exports = { register, login, logout, refreshTokenController, getCurrentUser };

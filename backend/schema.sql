@@ -10,6 +10,11 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS cars (
     id SERIAL PRIMARY KEY,
+    make TEXT NOT NULL,
+    model TEXT NOT NULL,
+    year INTEGER NOT NULL CHECK (year > 1885), -- The first car was invented in 1886
+    valuation INTEGER NOT NULL CHECK (valuation >= 0),
+    fuel_type TEXT NOT NULL CHECK (fuel_type IN ('petrol', 'diesel', 'electric', 'hybrid')),
     registration TEXT NOT NULL UNIQUE,
     status TEXT NOT NULL CHECK (status in ('active', 'maintenance', 'inactive'))
 );

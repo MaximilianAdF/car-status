@@ -1,10 +1,13 @@
+// routes/auth.js
 const express = require('express');
 const router = express.Router();
-const { login, logout, register, getSession } = require('../controllers/authController');
+const { register, login, logout, refreshTokenController, getCurrentUser } = require('../controllers/authController');
+const verifyToken = require('../middleware/verifyToken'); // Your new JWT verification middleware
 
-router.post('/login', login);
-router.post('/logout', logout);
 router.post('/register', register);
-router.get('/session', getSession);
+router.post('/login', login);
+router.post('/refresh-token', refreshTokenController); // New route for refreshing access token
+router.post('/logout', logout); // Could also be GET or use verifyToken if needed for specific logic
+router.get('/me', verifyToken, getCurrentUser);
 
 module.exports = router;

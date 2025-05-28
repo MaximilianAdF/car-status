@@ -1,12 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const verifySession = require('../middleware/verifySession');
 const pool = require('../db'); //db pool
+const getCarInfo = require('../getCarInfo'); // Function to fetch car info from external HTTP
+const verifyToken = require('../middleware/verifyToken');
 
-router.post('/cars', verifySession, async (req, res) => {
+router.post('/cars', verifyToken, async (req, res) => {
     try {
         const { rows } = await pool.query(
-            `SELECT c.registration, c.status
+            `SELECT c.registration, c.status, c.make, c.model, c.year, c.valuation, uc.access_level
             FROM cars c
             JOIN user_cars uc ON c.id = uc.car_id
             WHERE uc.user_id = $1`,
@@ -20,7 +21,7 @@ router.post('/cars', verifySession, async (req, res) => {
 });
 
 
-router.post('/add-car', verifySession, async (req, res) => {
+router.post('/add-car', verifyToken, async (req, res) => {
     const { registration, access_level } = req.body;
     if (!registration || !access_level) {
         return res.status(400).json({ error: 'Registration and access level are required' });
@@ -33,14 +34,21 @@ router.post('/add-car', verifySession, async (req, res) => {
             [registration]
         );
 
+
         let carId;
         if (carResult.rows.length === 0) {
+            // Fetch car info from external service
+            const carInfo = await getCarInfo(registration);
+            if (!carInfo || !carInfo.make || !carInfo.model || !carInfo.year || !carInfo.valuation) {
+                return res.status(400).json({ error: 'Car information cannot be fetched, contact admin' });
+            }
+
             // Insert new car if it doesn't exist
             const insertResult = await pool.query(
-                `INSERT INTO cars (registration, status)
-                VALUES ($1, 'inactive')
+                `INSERT INTO cars (make, model, year, valuation, registration, status)
+                VALUES ($1, $2, $3, $4, $5, 'inactive')
                 RETURNING id`,
-                [registration]
+                [carInfo.make, carInfo.model, carInfo.year, carInfo.valuation, registration]
             );
             carId = insertResult.rows[0].id;
         } else {
@@ -71,7 +79,7 @@ router.post('/add-car', verifySession, async (req, res) => {
 });
 
 
-router.delete('/remove-car/:registration', verifySession, async (req, res) => {
+router.delete('/remove-car/:registration', verifyToken, async (req, res) => {
     const { registration } = req.params;
     const userId = req.userId;
 
@@ -114,7 +122,7 @@ router.delete('/remove-car/:registration', verifySession, async (req, res) => {
 });
 
 
-router.post('/log-trip', verifySession, async (req, res) => {
+router.post('/log-trip', verifyToken, async (req, res) => {
     const { registration, start_mileage, end_mileage, notes, parked_location } = req.body;
     
     if (!registration || typeof start_mileage !== 'number' || typeof end_mileage !== 'number' || end_mileage < start_mileage) {

@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const verifySession = require('../middleware/verifySession');
+const verifyToken = require('../middleware/verifyToken');
 
-router.get('/me', verifySession, (req, res) => {
+router.get('/me', verifyToken, (req, res) => {
   res.json({
     id: req.user.id,
     first_name: req.user.first_name,
