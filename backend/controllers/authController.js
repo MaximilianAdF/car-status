@@ -16,8 +16,8 @@ const generateTokens = (userPayload) => {
 
 const setRefreshTokenCookie = (res, token, rememberMe = false) => {
   const maxAge = rememberMe
-    ? parseInt(process.env.REFRESH_TOKEN_REMEMBER_ME_EXPIRES_IN_MS || 30 * 24 * 60 * 60 * 1000) // e.g., 30 days in ms
-    : parseInt(process.env.REFRESH_TOKEN_EXPIRES_IN_MS || 7 * 24 * 60 * 60 * 1000); // e.g., 7 days in ms
+    ? parseInt(process.env.REFRESH_REMEMBER_ME_EXPIRATION * 24 * 60 * 60 * 1000) // e.g., 30 days in ms
+    : parseInt(process.env.REFRESH_TOKEN_EXPIRATION * 24 * 60 * 60 * 1000); // e.g., 7 days in ms
 
   res.cookie('refreshToken', token, {
     httpOnly: true,
